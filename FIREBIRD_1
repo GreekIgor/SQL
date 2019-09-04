@@ -1,0 +1,79 @@
+
+IF(TARIF_MONTH_DAY>0)THEN
+BEGIN
+ /*получим тариф абонента за один день*/
+ tarif_day = (TARIF_MONTH_DAY/DATEDIFF(DAY FROM CAST(CURRENT_DATE AS DATE) TO DATEADD(1 MONTH TO CAST(CURRENT_DATE AS DATE))));
+ /*узнаем сколько нужно оплатить абоненту до конца месяца*/
+ count_day_to_end = DATEDIFF(DAY FROM CAST(CURRENT_DATE AS DATE) TO DATEADD(1 MONTH TO CAST(CURRENT_DATE AS DATE)))-(EXTRACT(DAY FROM CURRENT_DATE));
+end
+
+
+ PAY_MONTH = 0;
+
+ IF((current_debt*-1)>0)THEN
+ BEGIN
+ /*Отнимем от баланс предоплату за ежедневные услуги до конца текущего месяца*/
+ current_debt = current_debt + (tarif_day*count_day_to_end);
+
+ /* за сколько месяцев есть оплата*/
+ IF(TARIF_MONTH>0)THEN BEGIN
+ PAY_MONTH=CEILING(current_debt/TARIF_MONTH_FDISCOUNT); END
+ /*остаток от баланса за вычетом предоплаты*/
+current_debt =  current_debt -(PAY_MONTH*TARIF_MONTH_FDISCOUNT);
+END
+
+
+  current_notice = 'за ';
+  I = 1;
+  P1 = 0;
+  P2 = 0;
+  count_month = period;
+  CURRENT_MONTH = start_month;
+
+  IF(start_month<EXTRACT(MONTH FROM CURRENT_DATE))THEN BEGIN  YEAR_START = (EXTRACT(YEAR FROM CURRENT_DATE)+1);      END
+  ELSE  YEAR_START = EXTRACT(YEAR FROM CURRENT_DATE);
+
+  IF(start_month<10)THEN
+   BEGIN
+  YEAR_END = EXTRACT(YEAR FROM DATEADD(MONTH,(:period-1),CAST('01.0'||start_month||'.'||YEAR_START as DATE)));
+   END
+   ELSE
+   BEGIN
+  YEAR_END = EXTRACT(YEAR FROM DATEADD(MONTH,(:period-1),CAST('01.'||start_month||'.'||YEAR_START as DATE)));
+   END
+
+   WHILE (I<=count_month) DO
+  begin
+      select trim(substring
+          (
+              'янв      февр     март     апр      май      июнь     '
+            ||'июль     авг      сент     окт      нояб     дек      '
+            from (:CURRENT_MONTH-1)*9+1
+            for 9
+          )) FROM rdb$database  into :notice;
+
+
+         IF((I=1)and(period<4))THEN
+         begin
+         current_notice =  current_notice||notice;
+         IF(I=count_month)THEN BEGIN current_notice = current_notice||'_'||YEAR_END;  END
+          end  ELSE
+         begin
+         if (period>3) then begin
+          IF((P1=0)and(i=1))THEN   begin current_notice='с '; current_notice =  current_notice||notice||'_'||YEAR_START;   end
+          IF((P2=0)and(i=count_month))THEN   begin  current_notice =  current_notice||' по '||notice||'_'||YEAR_END;   end
+                            end else
+        begin
+        current_notice =  current_notice||','||notice;
+          IF(I=count_month)THEN BEGIN current_notice = current_notice||'_'||YEAR_END;  END
+        end
+
+         end
+
+           CURRENT_MONTH = CURRENT_MONTH + 1;
+           IF(CURRENT_MONTH>12) THEN current_month = 1;
+           I = I+1;
+
+          end
+
+     curr_day =  EXTRACT(DAY FROM CURRENT_DATE);
